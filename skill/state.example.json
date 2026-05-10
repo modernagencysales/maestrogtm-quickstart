@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "_comment": "This is a schema reference / example. The real file is at ~/.claude/skills/quickstart/state.json",
+
+  "version": "1",
+
+  "path": "ship",
+  "_path_note": "Set by fork_pick (step 8). One of: 'ship', 'review', or null until the fork has been picked. Replaces the deprecated 'branch' field from the pre-H8 3-branch flow.",
+
+  "current_step": "send_outreach",
+  "_current_step_note": "The step that will run on the next /quickstart invocation. Set to 'kickoff' on first run.",
+
+  "completed_steps": ["kickoff", "supabase_setup", "schema_migrate", "wire_deepline", "first_workflow", "apply_formula", "ai_personalize", "fork_pick"],
+  "_completed_steps_note": "Steps whose verifier exited 0 or whose prompt explicitly marked complete. Append-only.",
+
+  "skipped_steps": [],
+  "_skipped_steps_note": "Steps explicitly skipped via the recovery menu option 3.",
+
+  "preflight_passed": true,
+  "_preflight_passed_note": "True once kickoff's first-time-here pre-flight (pwd check, tooling check, account expectations) has cleared.",
+
+  "started_at": "2026-05-09T14:00:00Z",
+  "_started_at_note": "ISO 8601 UTC timestamp of the very first invocation. Set once, never overwritten.",
+
+  "last_run_at": "2026-05-09T15:32:11Z",
+  "_last_run_at_note": "ISO 8601 UTC timestamp updated on every invocation.",
+
+  "finished_at": null,
+  "_finished_at_note": "ISO 8601 UTC timestamp set by finale.md when the adventure completes. Null until then.",
+
+  "branch_answers": {
+    "icp_seed": "B2B SaaS founders, 10-50 employees, US"
+  },
+  "_branch_answers_note": "Free-form answers from the kickoff ICP question. Single field today (icp_seed). Name is legacy from the pre-H8 3-branch flow that asked 3 questions; kept for backward compat.",
+
+  "coupon_shown": false,
+  "_coupon_shown_note": "Set to true once the QS200 cohort credit code has been displayed in finale.",
+
+  "status": null,
+  "_status_note": "Set to 'complete' when finale.md writes the closing state. Null until then.",
+
+  "_schema_version_history": {
+    "1": "Initial schema — May 2026 v1 launch (single-path flow with one fork at step 8)"
+  },
+
+  "_field_reference": {
+    "version": { "type": "string", "required": true, "default": "1" },
+    "path": { "type": ["string", "null"], "enum": ["ship", "review", null], "required": true, "default": null },
+    "current_step": { "type": "string", "required": true, "default": "kickoff" },
+    "completed_steps": { "type": "array", "items": "string", "required": true, "default": [] },
+    "skipped_steps": { "type": "array", "items": "string", "required": true, "default": [] },
+    "preflight_passed": { "type": "boolean", "required": true, "default": false },
+    "started_at": { "type": "string", "format": "date-time", "required": true },
+    "last_run_at": { "type": "string", "format": "date-time", "required": false },
+    "finished_at": { "type": ["string", "null"], "format": "date-time", "required": false, "default": null },
+    "branch_answers": {
+      "type": "object",
+      "properties": {
+        "icp_seed": { "type": "string", "description": "Free-form ICP description from the kickoff question." }
+      }
+    },
+    "coupon_shown": { "type": "boolean", "required": true, "default": false },
+    "status": { "type": ["string", "null"], "enum": ["complete", null], "default": null }
+  }
+}

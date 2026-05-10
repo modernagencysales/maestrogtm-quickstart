@@ -1,0 +1,35 @@
+{
+  "name": "@maestrogtm/quickstart",
+  "version": "0.1.0",
+  "description": "Maestro Quickstart — an AI coach that walks you through building a real cold-email machine on your computer. Drops a Claude Code skill into ~/.claude/skills/quickstart/.",
+  "bin": {
+    "maestrogtm-quickstart": "./bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "skill/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node bin/cli.js install --dry-run",
+    "sync": "./scripts/sync.sh",
+    "prepublishOnly": "./scripts/sync.sh && node bin/cli.js install --dry-run > /dev/null"
+  },
+  "keywords": [
+    "claude-code",
+    "cold-email",
+    "gtm",
+    "maestro",
+    "ai-agent"
+  ],
+  "author": "Maestro GTM",
+  "license": "SEE LICENSE IN README.md",
+  "homepage": "https://modernagencysales.com/learn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/modernagencysales/maestrogtm-quickstart"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

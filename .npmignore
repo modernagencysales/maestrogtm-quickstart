@@ -1,0 +1,7 @@
+.git/
+.gitignore
+.npmrc
+node_modules/
+scripts/
+*.tgz
+.DS_Store
