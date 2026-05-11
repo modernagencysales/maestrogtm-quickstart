@@ -11,12 +11,36 @@
 #   4. Runs `npx @maestrogtm/quickstart` to drop the skill onto your machine
 #
 # Safe to re-run. Asks before installing anything. Prints what it's doing.
+#
+# Debug: re-run with `bash -x` after curling to /tmp/install.sh, or set
+#   MAESTRO_DEBUG=1 to enable trace output.
 
-set -euo pipefail
+# Print immediately so the user sees something even if something later fails.
+echo ""
+echo "Maestro Quickstart — bootstrap starting..."
 
-# ── Colors ─────────────────────────────────────────────────────────────────
+# Trap errors so silent failures are debuggable
+trap 'rc=$?; echo "" >&2; echo "✗ Bootstrap failed at line $LINENO (exit $rc). Re-run with MAESTRO_DEBUG=1 to see what happened." >&2; exit $rc' ERR
+
+if [ -n "${MAESTRO_DEBUG:-}" ]; then
+  set -x
+fi
+
+# `set -e` only — we deliberately do NOT use `-u` (unset vars are common in
+# shell helpers) or `-o pipefail` (some tput/grep pipelines return non-zero
+# on no-match which would crash unrelated code paths).
+set -e
+
+# ── Colors (defang every tput call — TERM=dumb or missing terminfo would
+# otherwise crash the whole script silently) ───────────────────────────────
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
-  BOLD=$(tput bold); DIM=$(tput dim); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3); RED=$(tput setaf 1); CYAN=$(tput setaf 6); RESET=$(tput sgr0)
+  BOLD=$(tput bold 2>/dev/null || echo "")
+  DIM=$(tput dim 2>/dev/null || echo "")
+  GREEN=$(tput setaf 2 2>/dev/null || echo "")
+  YELLOW=$(tput setaf 3 2>/dev/null || echo "")
+  RED=$(tput setaf 1 2>/dev/null || echo "")
+  CYAN=$(tput setaf 6 2>/dev/null || echo "")
+  RESET=$(tput sgr0 2>/dev/null || echo "")
 else
   BOLD=""; DIM=""; GREEN=""; YELLOW=""; RED=""; CYAN=""; RESET=""
 fi
@@ -29,13 +53,19 @@ hdr()  { echo ""; echo "${BOLD}$1${RESET}"; }
 ask()  {
   # ask "prompt" → returns 0 if yes, 1 if no. Default no.
   if [ -n "${MAESTRO_NONINTERACTIVE:-}" ]; then
-    echo "${DIM}(non-interactive: assuming no)${RESET}"
-    return 1
+    echo "${DIM}(non-interactive: assuming yes)${RESET}"
+    return 0
+  fi
+  # When piped via curl|bash, stdin is the script content, so read from /dev/tty.
+  # If /dev/tty isn't available (CI, automated install), default to yes.
+  if [ ! -r /dev/tty ]; then
+    echo "${DIM}(no controlling terminal: assuming yes)${RESET}"
+    return 0
   fi
   local reply
-  printf "%s [y/N] " "$1"
-  read -r reply </dev/tty || return 1
-  case "$reply" in [yY]|[yY][eE][sS]) return 0;; *) return 1;; esac
+  printf "%s [Y/n] " "$1"
+  read -r reply </dev/tty || reply=""
+  case "$reply" in [nN]|[nN][oO]) return 1;; *) return 0;; esac
 }
 
 # ── Detect OS ──────────────────────────────────────────────────────────────
