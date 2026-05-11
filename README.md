@@ -2,18 +2,44 @@
 
 An AI coach that walks you through building a real cold-email machine on your computer — Supabase database, Deepline data layer, AgentMail sending, a campaign drafted around your offer.
 
-## Install
+## Install (the easy way)
+
+One command — installs Node.js if missing (with your permission), drops the skill into `~/.claude/skills/quickstart/`, and points you at Claude Code.
+
+**macOS / Linux / WSL:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/modernagencysales/maestrogtm-quickstart/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+iwr -useb https://raw.githubusercontent.com/modernagencysales/maestrogtm-quickstart/main/install.ps1 | iex
+```
+
+The script:
+1. Detects your OS
+2. Checks for Node.js 18+. If missing, offers to install via Homebrew (Mac) / NodeSource (Linux) / winget (Windows)
+3. Checks for Claude Code. If missing, points you at [claude.ai/code](https://claude.ai/code)
+4. Drops the skill into `~/.claude/skills/quickstart/`
+
+Then:
+```bash
+mkdir -p ~/maestro-quickstart && cd ~/maestro-quickstart
+claude
+/quickstart
+```
+
+## Install (manual, if you already have Node)
 
 ```bash
 npx @maestrogtm/quickstart install
 ```
 
-This drops a Claude Code skill into `~/.claude/skills/quickstart/`. Then:
+## Requirements
 
-```bash
-claude          # open Claude Code
-/quickstart     # start the guided flow
-```
+- **macOS, Linux, or Windows**
+- **Node.js 18+** (the bootstrap installs this for you if needed)
+- **Claude Code** (terminal CLI or desktop app — [claude.ai/code](https://claude.ai/code))
 
 ## What you get
 
