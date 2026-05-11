@@ -108,14 +108,196 @@ node_version_int() {
   fi
 }
 
+# Look for Node installations that exist on disk but aren't on PATH.
+# This happens constantly with nvm/fnm/volta installs that never wrote their
+# shell hook into ~/.zshrc, or with Homebrew installed in a non-default location.
+# Echoes the path to the newest qualifying node binary (v18+), or empty.
+find_orphaned_node() {
+  local candidates=()
+
+  # nvm — most common offender
+  if [ -d "$HOME/.nvm/versions/node" ]; then
+    local nvm_latest
+    nvm_latest=$(ls -d "$HOME"/.nvm/versions/node/v*/bin/node 2>/dev/null | sort -V | tail -1)
+    [ -n "$nvm_latest" ] && candidates+=("$nvm_latest")
+  fi
+
+  # fnm
+  if [ -d "$HOME/.fnm/node-versions" ]; then
+    local fnm_latest
+    fnm_latest=$(ls -d "$HOME"/.fnm/node-versions/v*/installation/bin/node 2>/dev/null | sort -V | tail -1)
+    [ -n "$fnm_latest" ] && candidates+=("$fnm_latest")
+  fi
+
+  # volta
+  [ -x "$HOME/.volta/bin/node" ] && candidates+=("$HOME/.volta/bin/node")
+
+  # asdf
+  if [ -d "$HOME/.asdf/installs/nodejs" ]; then
+    local asdf_latest
+    asdf_latest=$(ls -d "$HOME"/.asdf/installs/nodejs/*/bin/node 2>/dev/null | sort -V | tail -1)
+    [ -n "$asdf_latest" ] && candidates+=("$asdf_latest")
+  fi
+
+  # Homebrew (Apple Silicon and Intel)
+  [ -x "/opt/homebrew/bin/node" ] && candidates+=("/opt/homebrew/bin/node")
+  [ -x "/usr/local/bin/node" ] && candidates+=("/usr/local/bin/node")
+
+  # Pick the first one that's v18+
+  local node_path v
+  for node_path in "${candidates[@]}"; do
+    v=$("$node_path" --version 2>/dev/null | sed -E 's/^v?([0-9]+)\..*/\1/')
+    if [ -n "$v" ] && [ "$v" -ge 18 ] 2>/dev/null; then
+      echo "$node_path"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Given a path to an orphaned node binary, figure out the right shell rc
+# block to append, write it (idempotently), and source it for this session.
+fix_node_path() {
+  local node_path="$1"
+  local rc_file
+  case "${SHELL:-/bin/zsh}" in
+    */zsh)  rc_file="$HOME/.zshrc" ;;
+    */bash)
+      # macOS uses .bash_profile for login shells; Linux uses .bashrc
+      if [ "$OS" = "macos" ]; then rc_file="$HOME/.bash_profile"; else rc_file="$HOME/.bashrc"; fi
+      ;;
+    *) rc_file="$HOME/.profile" ;;
+  esac
+  touch "$rc_file"
+
+  local marker="# Added by maestrogtm-quickstart bootstrap"
+
+  case "$node_path" in
+    *"/.nvm/versions/node/"*)
+      if grep -q "NVM_DIR" "$rc_file" 2>/dev/null; then
+        say "  ${DIM}nvm hook already in $(basename "$rc_file") — sourcing for this session${RESET}"
+      else
+        say "  ${DIM}Appending nvm hook to $(basename "$rc_file")${RESET}"
+        {
+          echo ""
+          echo "$marker"
+          echo 'export NVM_DIR="$HOME/.nvm"'
+          echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
+          echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
+        } >> "$rc_file"
+      fi
+      export NVM_DIR="$HOME/.nvm"
+      # shellcheck disable=SC1091
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 2>/dev/null || true
+      ;;
+
+    *"/.fnm/"*)
+      if grep -q "fnm env" "$rc_file" 2>/dev/null; then
+        say "  ${DIM}fnm hook already in $(basename "$rc_file") — sourcing for this session${RESET}"
+      else
+        say "  ${DIM}Appending fnm hook to $(basename "$rc_file")${RESET}"
+        {
+          echo ""
+          echo "$marker"
+          echo 'eval "$(fnm env --use-on-cd)"'
+        } >> "$rc_file"
+      fi
+      command -v fnm >/dev/null 2>&1 && eval "$(fnm env --use-on-cd)" 2>/dev/null || true
+      ;;
+
+    *"/.volta/"*)
+      if grep -q "VOLTA_HOME" "$rc_file" 2>/dev/null; then
+        say "  ${DIM}volta hook already in $(basename "$rc_file") — sourcing for this session${RESET}"
+      else
+        say "  ${DIM}Appending volta hook to $(basename "$rc_file")${RESET}"
+        {
+          echo ""
+          echo "$marker"
+          echo 'export VOLTA_HOME="$HOME/.volta"'
+          echo 'export PATH="$VOLTA_HOME/bin:$PATH"'
+        } >> "$rc_file"
+      fi
+      export VOLTA_HOME="$HOME/.volta"
+      export PATH="$VOLTA_HOME/bin:$PATH"
+      ;;
+
+    *"/.asdf/"*)
+      if grep -q "asdf.sh" "$rc_file" 2>/dev/null; then
+        say "  ${DIM}asdf hook already in $(basename "$rc_file") — sourcing for this session${RESET}"
+      else
+        say "  ${DIM}Appending asdf hook to $(basename "$rc_file")${RESET}"
+        {
+          echo ""
+          echo "$marker"
+          echo '. "$HOME/.asdf/asdf.sh"'
+        } >> "$rc_file"
+      fi
+      # shellcheck disable=SC1091
+      [ -s "$HOME/.asdf/asdf.sh" ] && \. "$HOME/.asdf/asdf.sh" 2>/dev/null || true
+      ;;
+
+    /opt/homebrew/*)
+      if grep -q "/opt/homebrew/bin/brew shellenv" "$rc_file" 2>/dev/null; then
+        say "  ${DIM}brew shellenv already in $(basename "$rc_file") — sourcing for this session${RESET}"
+      else
+        say "  ${DIM}Appending brew shellenv to $(basename "$rc_file")${RESET}"
+        {
+          echo ""
+          echo "$marker"
+          echo 'eval "$(/opt/homebrew/bin/brew shellenv)"'
+        } >> "$rc_file"
+      fi
+      eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || true
+      ;;
+
+    /usr/local/*)
+      # Intel brew is usually already in /usr/local/bin which is on PATH by default,
+      # but if we got here something stripped it — add it explicitly.
+      if ! echo "$PATH" | tr ':' '\n' | grep -qx "/usr/local/bin"; then
+        say "  ${DIM}/usr/local/bin not on PATH — fixing${RESET}"
+        export PATH="/usr/local/bin:$PATH"
+        if ! grep -q "/usr/local/bin" "$rc_file" 2>/dev/null; then
+          {
+            echo ""
+            echo "$marker"
+            echo 'export PATH="/usr/local/bin:$PATH"'
+          } >> "$rc_file"
+        fi
+      fi
+      ;;
+  esac
+}
+
 ensure_node() {
   hdr "1. Node.js"
+
+  # Path 1: node is already on PATH and modern enough — done.
   local ver; ver="$(node_version_int)"
   if [ -n "$ver" ] && [ "$ver" -ge 18 ] 2>/dev/null; then
     ok "Node.js v$(node --version | sed 's/^v//') already installed"
     return 0
   fi
 
+  # Path 2: node EXISTS somewhere (nvm/fnm/volta/brew/asdf) but the shell
+  # never picked it up. This is the single most common Mac failure mode.
+  local orphan
+  if orphan=$(find_orphaned_node); then
+    say ""
+    say "Found a working Node at ${CYAN}$orphan${RESET}"
+    say "but your shell can't see it. Wiring it into PATH now."
+    say ""
+    fix_node_path "$orphan"
+    # Re-check after fixing PATH for this session
+    ver="$(node_version_int)"
+    if [ -n "$ver" ] && [ "$ver" -ge 18 ] 2>/dev/null; then
+      ok "Node.js v$(node --version | sed 's/^v//') is now usable"
+      say "  ${DIM}New terminals will pick this up automatically. Existing terminals: run \`source ~/.zshrc\`.${RESET}"
+      return 0
+    fi
+    warn "PATH fix didn't take effect in this session — falling through to install."
+  fi
+
+  # Path 3: nothing found anywhere — install fresh.
   if [ -n "$ver" ]; then
     warn "Node.js v$ver is installed but too old (need 18+)"
   else
